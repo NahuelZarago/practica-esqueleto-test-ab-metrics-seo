@@ -71,14 +71,20 @@ export function emptyLog(): ExperimentLog {
   }
 }
 
-export function assignVariant(_visitorId: string): Variant {
-  // TODO: hash estable. El mismo id tiene que devolver siempre la misma variante.
-  return 'a'
+export function assignVariant(visitorId: string): Variant {
+  // Hash estable: DJB2 bit a bit.
+  let hash = 0;
+  for (let i = 0; i < visitorId.length; i++) {
+    hash = visitorId.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  // Retorna 'a' o 'b' en minúscula porque el tipo Variant lo exige así
+  return Math.abs(hash) % 2 === 0 ? 'a' : 'b';
 }
 
-export function conversionRate(_stats: VariantStats): number | null {
-  // TODO: conversiones / impresiones. Sin impresiones, devolver null, no 0.
-  return null
+export function conversionRate(stats: VariantStats): number | null {
+  // conversiones / impresiones. Sin impresiones, devolver null.
+  if (stats.impressions === 0) return null;
+  return stats.conversions / stats.impressions;
 }
 
 export function rateGap(log: ExperimentLog): number | null {
@@ -88,9 +94,22 @@ export function rateGap(log: ExperimentLog): number | null {
   return (treatment - control) * 100
 }
 
-export function parseLog(_raw: string | undefined): ExperimentLog {
-  // TODO: validar el JSON antes de usarlo. Si falla, log vacío.
-  return emptyLog()
+export function parseLog(raw: string | undefined): ExperimentLog {
+  // Validar el JSON antes de usarlo. Si falla o no tiene la forma correcta, log vacío.
+  if (!raw) return emptyLog();
+  try {
+    const parsed = JSON.parse(raw);
+    if (
+      parsed && typeof parsed === 'object' && 
+      'a' in parsed && 'b' in parsed &&
+      typeof parsed.a.impressions === 'number' && typeof parsed.b.conversions === 'number'
+    ) {
+      return parsed as ExperimentLog;
+    }
+    return emptyLog();
+  } catch (error) {
+    return emptyLog();
+  }
 }
 
 export function serializeLog(log: ExperimentLog): string {
@@ -127,7 +146,6 @@ export function inRange(length: number, range: { min: number; max: number }): bo
 }
 
 export function cookieOptions(secure: boolean, maxAge?: number) {
-  // El preview corre en un iframe: la cookie tiene que ser Secure y SameSite=None.
   return {
     path: '/',
     httpOnly: true,
